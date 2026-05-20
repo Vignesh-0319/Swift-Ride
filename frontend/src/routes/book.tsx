@@ -16,6 +16,8 @@ import {
 import { toast } from "sonner";
 import { MapPin, Search, Clock, Users } from "lucide-react";
 
+const API_BASE = import.meta.env.VITE_API_URL || "https://swift-ride-b.onrender.com";
+
 export const Route = createFileRoute("/book")({ component: BookPage });
 
 type Place = { display_name: string; lat: number; lng: number };
@@ -50,7 +52,7 @@ function BookPage() {
   // 🔍 Search drop
   useEffect(() => {
     const t = setTimeout(async () => {
-      if (dropQ && (!drop || drop.display_name !== dropQ)) {
+      if (dropQ && (!drop || drop.drop_name !== dropQ)) {
         setDropOpts(await searchPlaces(dropQ));
       }
     }, 350);
@@ -60,20 +62,54 @@ function BookPage() {
   const distance = pickup && drop ? haversineKm(pickup, drop) : 0;
   const fare = pickup && drop ? estimateFare(distance, vehicle) : 0;
 
-  // 🚕 Simulated ride request
+  // 🚕 Production Ride Request Dispatch Pipeline
   const requestRide = async () => {
-    if (!user || !pickup || !drop) return;
+    if (!user || !pickup || !drop) {
+      toast.error("Please provide valid coordinates before requesting.");
+      return;
+    }
 
     setSubmitting(true);
 
-    setTimeout(() => {
-      const fakeRideId = Math.random().toString(36).substring(2, 9);
+    try {
+      const token = localStorage.getItem("token");
+      
+      const res = await fetch(`${API_BASE}/api/rides/create`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          rider_id: user.id || user._id,
+          pickup_address: pickup.display_name,
+          drop_address: drop.display_name,
+          pickup_lat: pickup.lat,
+          pickup_lng: pickup.lng,
+          drop_lat: drop.lat,
+          drop_lng: drop.lng,
+          distance_km: parseFloat(distance.toFixed(2)),
+          fare: fare,
+          vehicle: vehicle
+        })
+      });
 
-      toast.success("Ride requested! Searching for a driver...");
+      const data = await res.json();
+
+      if (res.ok) {
+        toast.success("Ride requested! Searching for an available driver...");
+        // Route parameter navigation maps smoothly to either backend field notation
+        const trackingId = data.ride._id || data.ride.id;
+        navigate({ to: "/ride/$id", params: { id: String(trackingId) } });
+      } else {
+        toast.error(data.message || "Failed to post ride logs to the cloud.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Network sync lost during dispatch sequence.");
+    } finally {
       setSubmitting(false);
-
-      navigate({ to: "/ride/$id", params: { id: fakeRideId } });
-    }, 1000);
+    }
   };
 
   return (
@@ -81,7 +117,7 @@ function BookPage() {
       <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
         
         {/* LEFT PANEL */}
-        <Card className="border-border/50 bg-card/60 p-6">
+        <Card className="border-border/50 bg-card/60 p-6 backdrop-blur">
           <h1 className="font-display text-2xl font-bold">Book a ride</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Enter pickup and drop, choose vehicle, confirm.
@@ -135,15 +171,15 @@ function BookPage() {
                     key={k}
                     type="button"
                     onClick={() => setVehicle(k)}
-                    className={`flex items-center justify-between rounded-lg border p-3 ${
+                    className={`flex items-center justify-between rounded-lg border p-3 transition ${
                       vehicle === k
-                        ? "border-primary bg-primary/10"
+                        ? "border-primary bg-primary/10 shadow-sm"
                         : "border-border bg-background/40 hover:bg-background/70"
                     }`}
                   >
-                    <div>
-                      <div className="font-semibold">{r.label}</div>
-                      <div className="flex gap-3 text-xs text-muted-foreground">
+                    <div className="text-left">
+                      <div className="font-semibold text-sm">{r.label}</div>
+                      <div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" /> {r.eta} min
                         </span>
@@ -154,7 +190,7 @@ function BookPage() {
                     </div>
 
                     <div className="text-right">
-                      <div className="font-bold">
+                      <div className="font-bold text-sm text-foreground">
                         {f !== null ? `₹${f}` : "—"}
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -167,15 +203,15 @@ function BookPage() {
             </div>
           </div>
 
-          {/* FARE */}
+          {/* FARE METRICS SUMMARY */}
           {pickup && drop && (
-            <div className="mt-6 rounded-lg border bg-background/40 p-4">
+            <div className="mt-6 rounded-lg border border-border/40 bg-background/20 p-4">
               <div className="flex justify-between text-sm">
-                <span>Distance</span>
-                <span>{distance.toFixed(1)} km</span>
+                <span className="text-muted-foreground">Distance</span>
+                <span className="font-medium text-foreground">{distance.toFixed(1)} km</span>
               </div>
-              <div className="mt-1 flex justify-between">
-                <span>Estimated fare</span>
+              <div className="mt-1 flex justify-between items-center">
+                <span className="text-muted-foreground text-sm">Estimated fare</span>
                 <span className="text-xl font-bold text-primary">
                   ₹{fare}
                 </span>
@@ -183,18 +219,18 @@ function BookPage() {
             </div>
           )}
 
-          {/* BUTTON */}
+          {/* ACTION BUTTON */}
           <Button
-            className="mt-6 w-full"
+            className="mt-6 w-full font-medium"
             disabled={!pickup || !drop || submitting}
             onClick={requestRide}
           >
-            {submitting ? "Requesting..." : "Request ride"}
+            {submitting ? "Requesting dispatch..." : "Confirm ride booking"}
           </Button>
         </Card>
 
-        {/* MAP */}
-        <div>
+        {/* GEOSPATIAL RENDER CANVAS */}
+        <div className="rounded-xl overflow-hidden border border-border/40 bg-card shadow-lg">
           <RideMap pickup={pickup} drop={drop} height={620} />
         </div>
       </div>
@@ -219,29 +255,29 @@ function PlaceField({
 }) {
   return (
     <div className="relative">
-      <Label>{label}</Label>
+      <Label className="text-xs font-medium text-muted-foreground">{label} Location</Label>
 
       <div className="relative mt-1">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="pl-9"
-          placeholder={`Search ${label.toLowerCase()}...`}
+          className="pl-9 text-sm"
+          placeholder={`Enter ${label.toLowerCase()} landmarks...`}
         />
       </div>
 
       {options.length > 0 && (
-        <div className="absolute z-30 mt-1 w-full bg-popover border rounded-md shadow-lg max-h-60 overflow-auto">
+        <div className="absolute z-30 mt-1 w-full bg-popover/95 backdrop-blur-md border border-border/60 rounded-md shadow-xl max-h-60 overflow-auto">
           {options.map((o, i) => (
             <button
               key={i}
               type="button"
               onClick={() => onSelect(o)}
-              className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-accent/30"
+              className="flex w-full items-start gap-2 px-3 py-2 text-left text-xs hover:bg-accent/40 border-b border-border/10 last:border-0"
             >
-              <MapPin className="h-4 w-4 text-primary" />
-              <span>{o.display_name}</span>
+              <MapPin className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0" />
+              <span className="truncate text-foreground/90">{o.display_name}</span>
             </button>
           ))}
         </div>
