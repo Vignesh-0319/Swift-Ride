@@ -9,75 +9,54 @@ import { toast } from "sonner";
 export function AuthPage() {
   const { setUser } = useAuth();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<"phone" | "code">("phone");
   const [phone, setPhone] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  // 1. Request OTP (Matches /api/auth/request-otp)
-  const handleRequestOtp = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleRequest = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const phoneInput = fd.get("phone") as string;
+    const phoneVal = new FormData(e.currentTarget).get("phone") as string;
     setLoading(true);
-
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/request-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: phoneInput }),
-      });
-      if (!res.ok) throw new Error("Failed to send code");
-      setPhone(phoneInput);
-      setStep("code");
-      toast.success("Code sent to your phone!");
-    } catch (err) {
-      toast.error("Error sending code");
-    } finally {
-      setLoading(false);
-    }
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: phoneVal }),
+    });
+    if (res.ok) { setPhone(phoneVal); setStep("code"); }
+    else toast.error("Failed to send OTP");
+    setLoading(false);
   };
 
-  // 2. Verify OTP (Matches /api/auth/verify-otp)
-  const handleVerifyOtp = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleVerify = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const code = fd.get("code") as string;
+    const code = new FormData(e.currentTarget).get("code") as string;
     setLoading(true);
-
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/verify-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, code }),
-      });
-      if (!res.ok) throw new Error("Invalid code");
-      const data = await res.json();
-      setUser(data.user);
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone, code }),
+    });
+    if (res.ok) {
+      const { user } = await res.json();
+      setUser(user);
       navigate({ to: "/book" });
-    } catch (err) {
-      toast.error("Invalid code");
-    } finally {
-      setLoading(false);
-    }
+    } else toast.error("Invalid code");
+    setLoading(false);
   };
 
   return (
-    <main className="container mx-auto flex min-h-[calc(100vh-4rem)] items-center justify-center px-4">
-      <Card className="w-full max-w-md p-8">
-        {step === "phone" ? (
-          <form onSubmit={handleRequestOtp} className="space-y-4">
-            <h2 className="text-xl font-bold">Enter your phone number</h2>
-            <Input name="phone" placeholder="+1234567890" required />
-            <Button className="w-full" disabled={loading}>{loading ? "..." : "Send Code"}</Button>
-          </form>
-        ) : (
-          <form onSubmit={handleVerifyOtp} className="space-y-4">
-            <h2 className="text-xl font-bold">Enter 6-digit code</h2>
-            <Input name="code" maxLength={6} required />
-            <Button className="w-full" disabled={loading}>{loading ? "..." : "Verify & Login"}</Button>
-          </form>
-        )}
-      </Card>
-    </main>
+    <Card className="max-w-md mx-auto mt-20 p-6">
+      {step === "phone" ? (
+        <form onSubmit={handleRequest} className="space-y-4">
+          <Input name="phone" placeholder="Phone Number" required />
+          <Button className="w-full" disabled={loading}>Send OTP</Button>
+        </form>
+      ) : (
+        <form onSubmit={handleVerify} className="space-y-4">
+          <Input name="code" placeholder="Enter 6-digit Code" required />
+          <Button className="w-full" disabled={loading}>Verify</Button>
+        </form>
+      )}
+    </Card>
   );
 }
