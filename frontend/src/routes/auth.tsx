@@ -4,10 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { API_URL } from "@/config"; // Ensure this points to your backend base URL
 
 export function AuthPage() {
   const { setUser } = useAuth();
@@ -16,7 +13,7 @@ export function AuthPage() {
   const [step, setStep] = useState<"phone" | "code">("phone");
   const [phone, setPhone] = useState("");
 
-  // 1. Request OTP
+  // 1. Request OTP (Matches /api/auth/request-otp)
   const handleRequestOtp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -24,7 +21,7 @@ export function AuthPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/auth/register`, { // Maps to request-otp
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/request-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: phoneInput }),
@@ -40,7 +37,7 @@ export function AuthPage() {
     }
   };
 
-  // 2. Verify OTP
+  // 2. Verify OTP (Matches /api/auth/verify-otp)
   const handleVerifyOtp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -48,7 +45,7 @@ export function AuthPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/auth/login`, { // Maps to verify-otp
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone, code }),
@@ -70,20 +67,14 @@ export function AuthPage() {
         {step === "phone" ? (
           <form onSubmit={handleRequestOtp} className="space-y-4">
             <h2 className="text-xl font-bold">Enter your phone number</h2>
-            <Label>Phone (with +country code)</Label>
             <Input name="phone" placeholder="+1234567890" required />
-            <Button className="w-full" disabled={loading}>
-              {loading ? "Sending..." : "Send Code"}
-            </Button>
+            <Button className="w-full" disabled={loading}>{loading ? "..." : "Send Code"}</Button>
           </form>
         ) : (
           <form onSubmit={handleVerifyOtp} className="space-y-4">
             <h2 className="text-xl font-bold">Enter 6-digit code</h2>
-            <Label>Verification Code</Label>
             <Input name="code" maxLength={6} required />
-            <Button className="w-full" disabled={loading}>
-              {loading ? "Verifying..." : "Verify & Login"}
-            </Button>
+            <Button className="w-full" disabled={loading}>{loading ? "..." : "Verify & Login"}</Button>
           </form>
         )}
       </Card>
