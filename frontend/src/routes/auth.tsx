@@ -1,25 +1,26 @@
-import { API_URL } from "../config"; // Ensure this points to the file we created
+import express from "express";
+const router = express.Router();
 
-const handleSignUp = async (userData) => {
-  // MUST call /register to match the backend router.post("/register")
-  const response = await fetch(`${API_URL}/auth/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(userData),
-  });
+// This handles: POST /api/auth/register
+router.post("/register", async (req, res) => {
+  try {
+    // ADD YOUR DB LOGIC HERE (e.g., const user = await User.create(req.body);)
+    console.log("Registration request received for:", req.body);
+    res.status(201).json({ message: "Registration successful" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
-  const data = await response.json();
-  // ... handle response
-};
+// This handles: POST /api/auth/login
+router.post("/login", async (req, res) => {
+  try {
+    // ADD YOUR LOGIN LOGIC HERE (e.g., check email/password)
+    console.log("Login request received for:", req.body.email);
+    res.status(200).json({ message: "Login successful" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
-const handleSignIn = async (credentials) => {
-  // MUST call /login to match the backend router.post("/login")
-  const response = await fetch(`${API_URL}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(credentials),
-  });
-
-  const data = await response.json();
-  // ... handle response
-};
+export default router;
