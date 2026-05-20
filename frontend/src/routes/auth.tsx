@@ -10,53 +10,101 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { Car } from "lucide-react";
 
+const API_BASE = import.meta.env.VITE_API_URL || "https://swift-ride-b.onrender.com";
+
 export const Route = createFileRoute("/auth")({ component: AuthPage });
 
 function AuthPage() {
-  const { user, setUser } = useAuth();
+  const { user, login } = useAuth(); // Using structural methods from your global AuthContext layer
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (user) navigate({ to: "/book" });
+    if (user) {
+      // Redirect users out of the authentication portal if an active session is detected
+      if (user.role === "driver") {
+        navigate({ to: "/driver" });
+      } else {
+        navigate({ to: "/book" });
+      }
+    }
   }, [user, navigate]);
 
-  // 🔥 Demo Sign Up (no backend yet)
-  const signUp = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-
-    setLoading(true);
-
-    setTimeout(() => {
-      setUser({
-        id: "demo-user",
-        phone: String(fd.get("email")),
-      });
-
-      toast.success("Account created (demo mode)");
-      setLoading(false);
-      navigate({ to: "/book" });
-    }, 1000);
-  };
-
-  // 🔥 Demo Sign In
+  // 🔐 Production Server Sign In
   const signIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const email = fd.get("email");
+    const password = fd.get("password");
 
     setLoading(true);
 
-    setTimeout(() => {
-      setUser({
-        id: "demo-user",
-        phone: String(fd.get("email")),
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
       });
 
-      toast.success("Signed in (demo mode)");
+      const data = await res.json();
+
+      if (res.ok) {
+        // Securely pass user data and the server-signed JWT token down into the application provider
+        login(data.user, data.token);
+        toast.success("Welcome back to SwiftRide!");
+        
+        if (data.user.role === "driver") {
+          navigate({ to: "/driver" });
+        } else {
+          navigate({ to: "/book" });
+        }
+      } else {
+        toast.error(data.message || "Invalid authentication credentials.");
+      }
+    } catch (err) {
+      toast.error("Unable to connect to the login server. Please try again.");
+    } finally {
       setLoading(false);
-      navigate({ to: "/book" });
-    }, 1000);
+    }
+  };
+
+  // 🆕 Production Server Sign Up
+  const signUp = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const name = fd.get("name");
+    const email = fd.get("email");
+    const password = fd.get("password");
+    const role = fd.get("role");
+
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password, role }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        login(data.user, data.token);
+        toast.success("Account registered successfully!");
+        
+        if (data.user.role === "driver") {
+          navigate({ to: "/driver" });
+        } else {
+          navigate({ to: "/book" });
+        }
+      } else {
+        toast.error(data.message || "Registration failed. Account may already exist.");
+      }
+    } catch (err) {
+      toast.error("Network communication failure during signup sequence.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -99,7 +147,7 @@ function AuthPage() {
                 <Input type="password" name="password" required minLength={6} />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "..." : "Sign in"}
+                {loading ? "Authenticating..." : "Sign in"}
               </Button>
             </form>
           </TabsContent>
@@ -137,7 +185,7 @@ function AuthPage() {
               </div>
 
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "..." : "Create account"}
+                {loading ? "Creating Profile..." : "Create account"}
               </Button>
             </form>
           </TabsContent>
