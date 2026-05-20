@@ -9,7 +9,6 @@ import { validate } from "../middleware/validate.js";
 
 const router = Router();
 
-// --- EXISTING LOGIC ---
 const phoneSchema = z.object({ phone: z.string().min(8).max(20).regex(/^\+?[0-9]+$/) });
 const verifySchema = z.object({ phone: z.string().min(8).max(20), code: z.string().length(6) });
 
@@ -37,7 +36,7 @@ router.post("/verify-otp", validate(verifySchema), async (req, res) => {
   res.json({ token, user: publicUser(user) });
 });
 
-// --- NEW ALIAS ROUTES (FIXES THE 404) ---
+// BRIDGE ROUTES (Fixes the 404)
 router.post("/register", (req, res) => res.redirect(307, "/api/auth/request-otp"));
 router.post("/login", (req, res) => res.redirect(307, "/api/auth/verify-otp"));
 
