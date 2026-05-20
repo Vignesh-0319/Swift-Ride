@@ -33,7 +33,7 @@ function Showcase() {
             </h1>
             <p className="mt-6 text-lg text-muted-foreground md:text-xl">
               SwiftRide is a full-stack ride booking system featuring integrated OpenStreetMap navigation,
-              real-time driver tracking, geospatial matching, and secure authentication.
+              real-time driver tracking via WebSockets, geospatial matching, and secure JWT verification.
             </p>
             <div className="mt-10 flex flex-wrap justify-center gap-3">
               <Button size="lg" onClick={cta} className="group">
@@ -46,9 +46,9 @@ function Showcase() {
             </div>
             <div className="mt-12 grid grid-cols-3 gap-4 text-left md:gap-8">
               {[
-                { k: "Real-time", v: "Live tracking" },
+                { k: "Real-time", v: "Socket.io Streams" },
                 { k: "Geospatial", v: "Smart matching" },
-                { k: "Secure", v: "RLS + JWT auth" },
+                { k: "Secure", v: "Node JWT auth" },
               ].map((s) => (
                 <div key={s.k} className="rounded-xl border border-border/50 bg-card/30 p-4 backdrop-blur">
                   <div className="text-xs uppercase tracking-wide text-primary">{s.k}</div>
@@ -89,9 +89,9 @@ function Showcase() {
           <SectionTitle eyebrow="02 · System Architecture" title="End-to-end data flow" />
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             {[
-              { icon: Code2, title: "Client", desc: "React + TanStack Router with Leaflet/OpenStreetMap rendering, optimistic UI and protected routes." },
-              { icon: Radio, title: "Realtime layer", desc: "WebSocket channels stream ride status and driver coordinates with sub-second latency." },
-              { icon: Database, title: "Postgres + RLS", desc: "Rides, profiles and driver locations stored in Postgres with row-level security policies." },
+              { icon: Code2, title: "Client Application", desc: "React + TanStack Router with Leaflet/OpenStreetMap rendering, optimistic UI updates, and route guards." },
+              { icon: Radio, title: "Node.js Server Layer", desc: "Express.js REST APIs coupled with Socket.io channels streaming driver coordinates at sub-second latency." },
+              { icon: Database, title: "MongoDB Database", desc: "Flexible Document schemas tracking profiles, dynamic rides, and live coordinate indexes securely." },
             ].map((c) => (
               <Card key={c.title} className="border-border/50 bg-card/60 p-6">
                 <c.icon className="h-8 w-8 text-primary" />
@@ -105,12 +105,12 @@ function Showcase() {
 
       {/* DATABASE */}
       <section className="container mx-auto px-4 py-24">
-        <SectionTitle eyebrow="03 · Database Schema" title="Three-table relational model" />
+        <SectionTitle eyebrow="03 · Database Collections" title="Three-model relational document structure" />
         <div className="mt-12 grid gap-6 md:grid-cols-3">
           {[
-            { name: "profiles", fields: ["user_id", "display_name", "role: rider|driver", "phone"] },
-            { name: "rides", fields: ["pickup / drop coords", "distance, fare", "vehicle, status", "rider_id, driver_id"] },
-            { name: "driver_locations", fields: ["driver_id (PK)", "lat, lng, heading", "updated_at"] },
+            { name: "profiles (users)", fields: ["_id (ObjectId)", "display_name", "role: rider|driver", "phone", "email"] },
+            { name: "rides (bookings)", fields: ["pickup / drop locations", "distance_km, fare", "vehicle, status", "rider_id, driver_id"] },
+            { name: "driver_locations", fields: ["driver_id (Ref)", "coordinates: [lat, lng]", "heading", "updated_at"] },
           ].map((t) => (
             <Card key={t.name} className="border-border/50 bg-card/50 p-6 font-mono text-sm">
               <div className="font-display text-lg font-bold text-primary">{t.name}</div>
@@ -125,12 +125,12 @@ function Showcase() {
       {/* AUTH */}
       <section className="border-y border-border/50 bg-card/20 py-24">
         <div className="container mx-auto px-4">
-          <SectionTitle eyebrow="04 · Authentication & Security" title="Multi-layer security with JWT + RLS" />
+          <SectionTitle eyebrow="04 · Authentication & Security" title="Multi-layer security with Stateless JWT" />
           <div className="mt-10 grid gap-6 md:grid-cols-3">
             {[
-              { icon: Shield, t: "JWT sessions", d: "Access & refresh tokens, auto-rotated, stored in httpOnly-safe storage." },
-              { icon: Users, t: "Role-based access", d: "Rider and driver roles enforced at the database boundary, not just UI." },
-              { icon: Zap, t: "Row-level security", d: "Every read/write goes through declarative Postgres policies." },
+              { icon: Shield, t: "JWT tokens", d: "Cryptographically signed Access tokens passed via Authorization headers to secure API endpoints." },
+              { icon: Users, t: "Role-based control", d: "Rider and driver authorization boundaries enforced on individual Express route middlewares." },
+              { icon: Zap, t: "Input validation", d: "Data sanitization, rate-limiting rules, and schema verification run before every write operation." },
             ].map((c) => (
               <Card key={c.t} className="border-border/50 bg-card/60 p-6">
                 <c.icon className="h-7 w-7 text-primary" />
@@ -149,9 +149,9 @@ function Showcase() {
           <div>
             <ul className="space-y-4">
               {[
-                { i: MapPin, t: "OpenStreetMap + Nominatim", d: "Free, open geocoding for pickup/drop autocomplete." },
-                { i: Radio, t: "Haversine distance", d: "Real-time fare and ETA estimation using great-circle math." },
-                { i: Car, t: "Live driver positioning", d: "Drivers broadcast coordinates; riders watch the marker move." },
+                { i: MapPin, t: "OpenStreetMap + Nominatim", d: "Free, open geocoding for pickup/drop autocomplete lists." },
+                { i: Radio, t: "Haversine formula calculation", d: "Real-time distance estimation using great-circle math algorithms." },
+                { i: Car, t: "Live positioning streams", d: "Drivers broadcast current metrics directly through active socket listeners." },
               ].map((x) => (
                 <li key={x.t} className="flex gap-4">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
@@ -166,7 +166,7 @@ function Showcase() {
             </ul>
           </div>
           <Card className="border-border/50 bg-card/50 p-6 shadow-[var(--shadow-card)]">
-            <div className="font-mono text-xs text-muted-foreground">// fare estimation</div>
+            <div className="font-mono text-xs text-muted-foreground">// fare estimation logic</div>
             <pre className="mt-2 overflow-x-auto rounded-md bg-background/60 p-4 text-xs leading-relaxed text-foreground">
 {`const km = haversine(pickup, drop);
 const fare = base + perKm * km;
