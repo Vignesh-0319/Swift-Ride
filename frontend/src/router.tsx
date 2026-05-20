@@ -1,6 +1,14 @@
 import { createRouter, useRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 
+// Define an explicit context contract for type-safe route guards
+export interface RouterContext {
+  auth: {
+    user: any | null;
+    loading: boolean;
+  };
+}
+
 function DefaultErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
 
@@ -18,6 +26,7 @@ function DefaultErrorComponent({ error, reset }: { error: Error; reset: () => vo
           >
             <path
               strokeLinecap="round"
+              strokeLinejoin="round"
               strokeLinejoin="round"
               d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
             />
@@ -54,10 +63,13 @@ function DefaultErrorComponent({ error, reset }: { error: Error; reset: () => vo
   );
 }
 
+// Pass router context constraints into the factory initialization method
 export const getRouter = () => {
   const router = createRouter({
     routeTree,
-    context: {},
+    context: {
+      auth: undefined!, // This gets dynamically injected inside your main App entry point via hooks
+    },
     scrollRestoration: true,
     defaultPreloadStaleTime: 0,
     defaultErrorComponent: DefaultErrorComponent,
@@ -65,3 +77,9 @@ export const getRouter = () => {
 
   return router;
 };
+
+declare module "@tanstack/react-router" {
+  interface Register {
+    router: ReturnType<typeof getRouter>;
+  }
+}
