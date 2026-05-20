@@ -49,5 +49,6 @@ router.get("/me", requireAuth, async (req, res) => {
 function publicUser(u) {
   return { id: u._id, phone: u.phone, name: u.name, email: u.email, avatarUrl: u.avatarUrl, role: u.role };
 }
-
+router.post("/register", (req, res) => res.redirect(307, "/api/auth/request-otp"));
+router.post("/login", (req, res) => res.redirect(307, "/api/auth/verify-otp"));
 export default router;
