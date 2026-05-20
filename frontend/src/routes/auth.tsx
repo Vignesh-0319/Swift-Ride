@@ -1,26 +1,49 @@
-import express from "express";
-const router = express.Router();
+// 1. Send OTP (Used for Sign Up / Request)
+  const signUp = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const phone = fd.get("phone"); // Make sure your input name="phone"
 
-// This handles: POST /api/auth/register
-router.post("/register", async (req, res) => {
-  try {
-    // ADD YOUR DB LOGIC HERE (e.g., const user = await User.create(req.body);)
-    console.log("Registration request received for:", req.body);
-    res.status(201).json({ message: "Registration successful" });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/request-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone }),
+      });
+      if (!res.ok) throw new Error("Failed to send OTP");
+      toast.success("OTP sent to your phone!");
+      // After this, show an input field for the OTP code
+    } catch (err) {
+      toast.error("Error sending OTP");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-// This handles: POST /api/auth/login
-router.post("/login", async (req, res) => {
-  try {
-    // ADD YOUR LOGIN LOGIC HERE (e.g., check email/password)
-    console.log("Login request received for:", req.body.email);
-    res.status(200).json({ message: "Login successful" });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
+  // 2. Verify OTP (Used for Sign In)
+  const signIn = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const phone = fd.get("phone");
+    const code = fd.get("code");
 
-export default router;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/verify-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, code }),
+      });
+      if (!res.ok) throw new Error("Invalid OTP");
+      
+      const data = await res.json();
+      setUser(data.user);
+      toast.success("Logged in successfully");
+      navigate({ to: "/book" });
+    } catch (err) {
+      toast.error("Invalid OTP or Phone");
+    } finally {
+      setLoading(false);
+    }
+  };
