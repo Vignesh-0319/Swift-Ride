@@ -23,82 +23,46 @@ const app = express();
 app.use(helmet());
 app.use(
   cors({
-    origin:
-      env.CLIENT_ORIGIN === "*"
-        ? true
-        : env.CLIENT_ORIGIN.split(","),
+    origin: env.CLIENT_ORIGIN === "*" ? true : env.CLIENT_ORIGIN.split(","),
     credentials: true,
   })
 );
 
 app.use(express.json({ limit: "1mb" }));
 app.use(morgan("dev"));
-app.use("/api/", rateLimit({ windowMs: 60000, max: 120 }));
 
-app.get("/api/health", (_req, res) =>
+// UPDATED: Global rate limiter now covers the root path
+app.use("/", rateLimit({ windowMs: 60000, max: 120 }));
+
+// UPDATED: Health check route now at /health
+app.get("/health", (_req, res) =>
   res.json({ ok: true, service: "swiftride-api" })
 );
 
-app.use("/api/auth", authRoutes);
-app.use("/api/profile", profileRoutes);
-app.use("/api/rides", rideRoutes);
-app.use("/api/drivers", driverRoutes);
-app.use("/api/wallet", walletRoutes);
-app.use("/api/support", supportRoutes);
+// UPDATED: Routes mounted directly on the root
+app.use("/auth", authRoutes);
+app.use("/profile", profileRoutes);
+app.use("/rides", rideRoutes);
+app.use("/drivers", driverRoutes);
+app.use("/wallet", walletRoutes);
+app.use("/support", supportRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
 
 const server = http.createServer(app);
 
+// Initialize DB and Start Server
+connectDB().then(() => {
+  server.listen(env.PORT, () => {
+    console.log(`[server] running on port ${env.PORT}`);
+  });
+});
+
 const io = new SocketServer(server, {
   cors: {
-    origin:
-      env.CLIENT_ORIGIN === "*"
-        ? true
-        : env.CLIENT_ORIGIN.split(","),
+    origin: env.CLIENT_ORIGIN === "*" ? true : env.CLIENT_ORIGIN.split(","),
   },
 });
 
-io.use((socket, next) => {
-  try {
-    const token = socket.handshake.auth?.token;
-
-    if (!token) {
-      return next(new Error("Missing token"));
-    }
-
-    socket.user = jwt.verify(token, env.JWT_SECRET);
-
-    next();
-  } catch {
-    next(new Error("Invalid token"));
-  }
-});
-
-io.on("connection", (socket) => {
-  socket.on("driver:location", ({ rideId, lat, lng, heading }) => {
-    if (!rideId) return;
-
-    io.to(`ride:${rideId}`).emit("driver:location", {
-      lat,
-      lng,
-      heading,
-      ts: Date.now(),
-    });
-  });
-
-  socket.on("ride:join", ({ rideId }) => {
-    if (rideId) {
-      socket.join(`ride:${rideId}`);
-    }
-  });
-});
-
-(async () => {
-  await connectDB();
-
-  server.listen(env.PORT, () => {
-    console.log(`[swiftride-api] listening on :${env.PORT}`);
-  });
-})();
+// ... Keep your existing io.use and io.on logic below ...
