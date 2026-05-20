@@ -1,13 +1,15 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Radio, Navigation } from "lucide-react";
+
+// Pull the live backend base URL from your newly created .env file configuration
+const API_BASE = import.meta.env.VITE_API_URL || "https://swift-ride-b.onrender.com";
 
 export const Route = createFileRoute("/driver")({ component: DriverDash });
 
@@ -27,56 +29,123 @@ function DriverDash() {
     }
   }, [user, profile, loading, navigate]);
 
+  // Refactored to fetch metadata from your Express/MongoDB service instead of Supabase
   const refreshLists = async () => {
     if (!user) return;
-    const { data: pend } = await supabase.from("rides").select("*").eq("status", "requested").is("driver_id", null).order("created_at", { ascending: false }).limit(20);
-    const { data: mine } = await supabase.from("rides").select("*").eq("driver_id", user.id).order("created_at", { ascending: false }).limit(20);
-    setPendingRides(pend || []); setMyRides(mine || []);
+    try {
+      const token = localStorage.getItem("token"); // Assuming your context keeps JWT tokens here
+      const headers = { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      };
+
+      // Fetch open pending requests
+      const pendRes = await fetch(`${API_BASE}/api/rides?status=requested`, { headers });
+      if (pendRes.ok) {
+        const pendData = await pendRes.json();
+        setPendingRides(Array.isArray(pendData) ? pendData.slice(0, 20) : []);
+      }
+
+      // Fetch driver specific history
+      const mineRes = await fetch(`${API_BASE}/api/drivers/rides`, { headers });
+      if (mineRes.ok) {
+        const mineData = await mineRes.json();
+        setMyRides(Array.isArray(mineData) ? mineData.slice(0, 20) : []);
+      }
+    } catch (err) {
+      console.error("Error refreshing ride tracking feeds:", err);
+    }
   };
 
   useEffect(() => {
     if (!user) return;
     refreshLists();
-    const ch = supabase.channel("driver-feed")
-      .on("postgres_changes", { event: "*", schema: "public", table: "rides" }, refreshLists)
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    
+    // Polling fallback to keep data fresh without native Supabase Postgres triggers
+    const interval = setInterval(refreshLists, 10000);
+    return () => clearInterval(interval);
   }, [user]);
 
-  // Geolocation broadcaster
+  // Geolocation broadcaster refactored to look at your Express app endpoints
   useEffect(() => {
     if (!online || !user) {
       if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
       return;
     }
-    if (!navigator.geolocation) { toast.error("Geolocation not supported"); setOnline(false); return; }
+    if (!navigator.geolocation) { 
+      toast.error("Geolocation not supported"); 
+      setOnline(false); 
+      return; 
+    }
+
+    const token = localStorage.getItem("token");
+
     watchRef.current = navigator.geolocation.watchPosition(
       async (pos) => {
-        await supabase.from("driver_locations").upsert({
-          driver_id: user.id, lat: pos.coords.latitude, lng: pos.coords.longitude, heading: pos.coords.heading,
-        });
+        // Send coordinate broadcasts to your Node backend system
+        try {
+          await fetch(`${API_BASE}/api/drivers/location`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+            body: JSON.stringify({
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              heading: pos.coords.heading
+            })
+          });
+        } catch (e) {
+          console.error("Failed to broadcast location parameters:", e);
+        }
       },
       () => {
-        // fallback: simulate near Delhi
+        // Fallback simulation sequence
         const base = { lat: 28.6139, lng: 77.209 };
         let i = 0;
         const id = window.setInterval(async () => {
           i++;
-          await supabase.from("driver_locations").upsert({
-            driver_id: user.id, lat: base.lat + Math.sin(i / 10) * 0.01, lng: base.lng + Math.cos(i / 10) * 0.01,
-          });
-        }, 2000);
+          try {
+            await fetch(`${API_BASE}/api/drivers/location`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+              body: JSON.stringify({
+                lat: base.lat + Math.sin(i / 10) * 0.01,
+                lng: base.lng + Math.cos(i / 10) * 0.01
+              })
+            });
+          } catch (e) {}
+        }, 3000);
         watchRef.current = id as unknown as number;
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
     );
-    return () => { if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current); };
+
+    return () => { 
+      if (watchRef.current !== null) {
+        if (online) navigator.geolocation.clearWatch(watchRef.current);
+        else clearInterval(watchRef.current);
+      }
+    };
   }, [online, user]);
 
   const accept = async (rideId: string) => {
     if (!user) return;
-    const { error } = await supabase.from("rides").update({ driver_id: user.id, status: "accepted" }).eq("id", rideId).is("driver_id", null);
-    if (error) toast.error(error.message); else { toast.success("Ride accepted"); refreshLists(); }
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/api/rides/${rideId}/accept`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }
+      });
+      
+      if (res.ok) {
+        toast.success("Ride accepted"); 
+        refreshLists(); 
+      } else {
+        const errData = await res.json();
+        toast.error(errData.message || "Failed to accept ride request.");
+      }
+    } catch (err) {
+      toast.error("Network interface error updating booking.");
+    }
   };
 
   return (
@@ -116,7 +185,7 @@ function DriverDash() {
                     </div>
                     <div className="text-right">
                       <div className="font-display text-2xl font-bold text-primary">₹{r.fare}</div>
-                      <div className="text-xs text-muted-foreground">{Number(r.distance_km).toFixed(1)} km · {String(r.vehicle).toUpperCase()}</div>
+                      <div className="text-xs text-muted-foreground">{Number(r.distance_km || 0).toFixed(1)} km · {String(r.vehicle || 'auto').toUpperCase()}</div>
                     </div>
                   </div>
                   <Button size="sm" className="mt-3 w-full" disabled={!online} onClick={() => accept(r.id)}>
